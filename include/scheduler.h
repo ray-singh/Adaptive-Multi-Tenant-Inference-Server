@@ -26,6 +26,7 @@ private:
     std::vector<Request> form_fifo_batch();
     std::vector<Request> form_fixed_batch();
     std::vector<Request> form_adaptive_batch();
+    std::vector<Request> form_priority_batch();
 
     RequestQueue& queue_;
     SchedulerConfig config_;

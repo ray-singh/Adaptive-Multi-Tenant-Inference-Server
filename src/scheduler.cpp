@@ -1,4 +1,5 @@
 #include "scheduler.h"
+#include <algorithm>
 #include <thread>
 
 Scheduler::Scheduler(RequestQueue& queue, SchedulerConfig config)
@@ -10,11 +11,11 @@ void Scheduler::set_policy(SchedulerPolicy policy) {
 
 std::vector<Request> Scheduler::next_batch() {
     switch (config_.policy) {
-        case SchedulerPolicy::FIFO:         return form_fifo_batch();
-        case SchedulerPolicy::FixedBatch:   return form_fixed_batch();
+        case SchedulerPolicy::FIFO: return form_fifo_batch();
+        case SchedulerPolicy::FixedBatch: return form_fixed_batch();
         case SchedulerPolicy::AdaptiveBatch:
-        case SchedulerPolicy::PriorityBatch:
-        default:                            return form_adaptive_batch();
+        case SchedulerPolicy::PriorityBatch: return form_priority_batch();
+        default: return form_adaptive_batch();
     }
 }
 
@@ -62,6 +63,24 @@ std::vector<Request> Scheduler::form_adaptive_batch() {
         if (!queue_.pop(r, std::chrono::milliseconds{0})) break;
         batch.push_back(std::move(r));
     }
+
+    return batch;
+}
+
+std::vector<Request> Scheduler::form_priority_batch() {
+    auto batch = form_adaptive_batch();
+    if (batch.size() <= 1) return batch;
+
+    // Sort by priority descending, then by soonest absolute deadline ascending.
+    // ensures high-priority requests are processed first, and among equal
+    // priority the most time-constrained request goes first.
+    std::sort(batch.begin(), batch.end(), [](const Request& a, const Request& b) {
+        if (a.priority != b.priority)
+            return static_cast<int>(a.priority) > static_cast<int>(b.priority);
+        auto deadline_a = a.enqueue_time + a.deadline;
+        auto deadline_b = b.enqueue_time + b.deadline;
+        return deadline_a < deadline_b;
+    });
 
     return batch;
 }
