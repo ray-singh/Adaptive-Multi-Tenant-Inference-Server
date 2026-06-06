@@ -28,11 +28,16 @@ void Server::register_routes() {
         std::promise<std::string> promise;
         auto future = promise.get_future();
 
+        auto prio_str = body.value("priority", "normal");
+        Priority prio = Priority::Normal;
+        if (prio_str == "high")      prio = Priority::High;
+        else if (prio_str == "low")  prio = Priority::Low;
+
         Request r;
         r.id           = ++request_id_counter;
         r.tenant_id    = body.value("tenant_id", "default");
         r.payload      = body.value("payload", "");
-        r.priority     = Priority::Normal;
+        r.priority     = prio;
         r.enqueue_time = std::chrono::steady_clock::now();
         r.deadline     = std::chrono::milliseconds{body.value("deadline_ms", 5000)};
         r.on_complete  = [p = std::make_shared<std::promise<std::string>>(

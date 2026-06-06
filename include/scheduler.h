@@ -1,6 +1,7 @@
 #pragma once
 #include "request.h"
 #include "request_queue.h"
+#include <atomic>
 #include <vector>
 
 enum class SchedulerPolicy { FIFO, FixedBatch, AdaptiveBatch, PriorityBatch };
@@ -18,9 +19,12 @@ public:
     explicit Scheduler(RequestQueue& queue, SchedulerConfig config = {});
 
     // Blocking: waits until a batch is ready, then returns it.
+    // Returns empty immediately if stop() has been called.
     std::vector<Request> next_batch();
 
     void set_policy(SchedulerPolicy policy);
+    void stop();
+    bool is_running() const;
 
 private:
     std::vector<Request> form_fifo_batch();
@@ -30,4 +34,5 @@ private:
 
     RequestQueue& queue_;
     SchedulerConfig config_;
+    std::atomic<bool> running_{true};
 };

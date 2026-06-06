@@ -10,13 +10,22 @@ void Scheduler::set_policy(SchedulerPolicy policy) {
 }
 
 std::vector<Request> Scheduler::next_batch() {
+    if (!running_) return {};
     switch (config_.policy) {
-        case SchedulerPolicy::FIFO: return form_fifo_batch();
-        case SchedulerPolicy::FixedBatch: return form_fixed_batch();
-        case SchedulerPolicy::AdaptiveBatch:
+        case SchedulerPolicy::FIFO:          return form_fifo_batch();
+        case SchedulerPolicy::FixedBatch:    return form_fixed_batch();
+        case SchedulerPolicy::AdaptiveBatch: return form_adaptive_batch();
         case SchedulerPolicy::PriorityBatch: return form_priority_batch();
-        default: return form_adaptive_batch();
     }
+    return {};
+}
+
+void Scheduler::stop() {
+    running_ = false;
+}
+
+bool Scheduler::is_running() const {
+    return running_;
 }
 
 std::vector<Request> Scheduler::form_fifo_batch() {

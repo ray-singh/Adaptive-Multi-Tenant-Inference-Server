@@ -5,8 +5,18 @@
 #include <prometheus/exposer.h>
 #include <prometheus/registry.h>
 #include <spdlog/spdlog.h>
+#include <csignal>
 #include <thread>
 #include <chrono>
+
+// Pointers set before signal registration; only written once from main.
+static Server*    g_server    = nullptr;
+static Scheduler* g_scheduler = nullptr;
+
+static void on_signal(int) {
+    if (g_scheduler) g_scheduler->stop();
+    if (g_server)    g_server->stop();
+}
 
 int main() {
     // Metrics
@@ -18,7 +28,7 @@ int main() {
     // Request queue + scheduler
     RequestQueue queue;
     SchedulerConfig sched_cfg;
-    sched_cfg.policy   = SchedulerPolicy::AdaptiveBatch;
+    sched_cfg.policy    = SchedulerPolicy::AdaptiveBatch;
     sched_cfg.max_batch = 16;
     sched_cfg.max_wait  = std::chrono::milliseconds{20};
     Scheduler scheduler(queue, sched_cfg);
@@ -34,18 +44,31 @@ int main() {
 
     // Scheduler dispatch loop (runs on its own thread)
     std::thread dispatch([&] {
-        while (true) {
+        while (scheduler.is_running()) {
             auto batch = scheduler.next_batch();
             if (!batch.empty())
                 workers.submit_batch(std::move(batch));
         }
     });
-    dispatch.detach();
 
-    // HTTP server (blocks)
+    // HTTP server
     ServerConfig srv_cfg;
     Server server(srv_cfg, queue, metrics);
-    server.run();
+
+    // Register signal handlers after all objects are constructed
+    g_server    = &server;
+    g_scheduler = &scheduler;
+    std::signal(SIGINT,  on_signal);
+    std::signal(SIGTERM, on_signal);
+
+    spdlog::info("Send SIGINT or SIGTERM to shut down cleanly");
+    server.run(); // blocks until server.stop() is called
+
+    // Ordered shutdown: stop scheduler first so dispatch thread exits,
+    // then drain the worker pool.
+    scheduler.stop();
+    if (dispatch.joinable()) dispatch.join();
+    workers.shutdown();
 
     return 0;
 }
