@@ -2,14 +2,17 @@
 #include "scheduler.h"
 #include "worker_pool.h"
 #include "metrics.h"
+#include "llm_inference.h"
 #include <prometheus/exposer.h>
 #include <prometheus/registry.h>
 #include <spdlog/spdlog.h>
 #include <csignal>
+#include <cstdlib>
+#include <filesystem>
+#include <memory>
 #include <thread>
 #include <chrono>
 
-// Pointers set before signal registration; only written once from main.
 static Server*    g_server    = nullptr;
 static Scheduler* g_scheduler = nullptr;
 
@@ -33,16 +36,35 @@ int main() {
     sched_cfg.max_wait  = std::chrono::milliseconds{20};
     Scheduler scheduler(queue, sched_cfg);
 
-    // Stub inference function — replace with real model call
-    auto inference_fn = [](const std::string& payload) -> std::string {
-        std::this_thread::sleep_for(std::chrono::milliseconds{10}); // simulate compute
-        return "result:" + payload;
-    };
+    // Inference function: use a real LLM if MODEL_PATH is set, else stub.
+    std::unique_ptr<LlamaInference> llm;
+    InferenceFn inference_fn;
+
+    const char* model_path = std::getenv("MODEL_PATH");
+    if (model_path && std::filesystem::exists(model_path)) {
+        try {
+            llm = std::make_unique<LlamaInference>(model_path, /*n_ctx=*/512, /*n_threads=*/4, /*n_gpu_layers=*/-1);
+            inference_fn = [&llm](const std::string& payload) {
+                return llm->generate(payload);
+            };
+        } catch (const std::exception& e) {
+            spdlog::error("Failed to load model: {} — falling back to stub", e.what());
+        }
+    }
+
+    if (!inference_fn) {
+        spdlog::warn("MODEL_PATH not set or load failed — using stub inference");
+        spdlog::warn("Set MODEL_PATH=/path/to/model.gguf to enable real inference");
+        inference_fn = [](const std::string& payload) -> std::string {
+            std::this_thread::sleep_for(std::chrono::milliseconds{10});
+            return "stub:" + payload;
+        };
+    }
 
     // Worker pool
     WorkerPool workers(4, inference_fn, metrics);
 
-    // Scheduler dispatch loop (runs on its own thread)
+    // Scheduler dispatch loop
     std::thread dispatch([&] {
         while (scheduler.is_running()) {
             auto batch = scheduler.next_batch();
@@ -55,17 +77,14 @@ int main() {
     ServerConfig srv_cfg;
     Server server(srv_cfg, queue, metrics);
 
-    // Register signal handlers after all objects are constructed
     g_server    = &server;
     g_scheduler = &scheduler;
     std::signal(SIGINT,  on_signal);
     std::signal(SIGTERM, on_signal);
 
     spdlog::info("Send SIGINT or SIGTERM to shut down cleanly");
-    server.run(); // blocks until server.stop() is called
+    server.run();
 
-    // Ordered shutdown: stop scheduler first so dispatch thread exits,
-    // then drain the worker pool.
     scheduler.stop();
     if (dispatch.joinable()) dispatch.join();
     workers.shutdown();

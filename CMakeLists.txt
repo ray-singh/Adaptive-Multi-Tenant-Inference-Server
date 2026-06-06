@@ -20,13 +20,32 @@ find_package(prometheus-cpp CONFIG REQUIRED)
 find_package(spdlog CONFIG REQUIRED)
 find_package(GTest CONFIG REQUIRED)
 
-# Core library (scheduler, workers, queue — shared by server and tests)
+# llama.cpp — pulled at configure time, builds only the core library.
+include(FetchContent)
+set(LLAMA_BUILD_TESTS    OFF CACHE BOOL "" FORCE)
+set(LLAMA_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(LLAMA_BUILD_SERVER   OFF CACHE BOOL "" FORCE)
+set(BUILD_SHARED_LIBS    OFF CACHE BOOL "" FORCE)
+# Enable Metal (MPS) on Apple platforms
+set(GGML_METAL           ON  CACHE BOOL "" FORCE)
+set(GGML_METAL_EMBED_LIBRARY ON CACHE BOOL "" FORCE)
+FetchContent_Declare(
+    llama_cpp
+    GIT_REPOSITORY    https://github.com/ggerganov/llama.cpp.git
+    GIT_TAG           b5159
+    GIT_SHALLOW       TRUE
+    GIT_SUBMODULES    ""
+)
+FetchContent_MakeAvailable(llama_cpp)
+
+# Core library (scheduler, workers, queue, LLM wrapper — shared by server and tests)
 add_library(inference_core
   src/request.cpp
   src/request_queue.cpp
   src/scheduler.cpp
   src/worker_pool.cpp
   src/metrics.cpp
+  src/llm_inference.cpp
 )
 target_include_directories(inference_core PUBLIC include)
 target_link_libraries(inference_core
@@ -34,6 +53,7 @@ target_link_libraries(inference_core
     nlohmann_json::nlohmann_json
     prometheus-cpp::pull
     spdlog::spdlog
+    llama
 )
 
 # Server executable
@@ -43,7 +63,7 @@ target_link_libraries(inference_server
     inference_core
 )
 
-# Tests
+# Tests (do not link llm_inference — tests use the stub, not a real model)
 enable_testing()
 add_executable(tests
   tests/test_request_queue.cpp
