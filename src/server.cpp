@@ -9,7 +9,8 @@ using json = nlohmann::json;
 static std::atomic<uint64_t> request_id_counter{0};
 
 Server::Server(ServerConfig config, RequestQueue& queue, Metrics& metrics)
-    : config_(config), queue_(queue), metrics_(metrics) {
+    : config_(config), queue_(queue), metrics_(metrics),
+      rate_limiter_(config.rate_limit_rps, config.rate_limit_burst) {
     register_routes();
 }
 
@@ -25,6 +26,14 @@ void Server::register_routes() {
             return;
         }
 
+        auto tenant_id = body.value("tenant_id", "default");
+        if (!rate_limiter_.allow(tenant_id)) {
+            metrics_.requests_rate_limited.Increment();
+            res.status = 429;
+            res.set_content(R"({"error":"rate limit exceeded"})", "application/json");
+            return;
+        }
+
         std::promise<std::string> promise;
         auto future = promise.get_future();
 
@@ -35,7 +44,7 @@ void Server::register_routes() {
 
         Request r;
         r.id           = ++request_id_counter;
-        r.tenant_id    = body.value("tenant_id", "default");
+        r.tenant_id    = tenant_id;
         r.payload      = body.value("payload", "");
         r.priority     = prio;
         r.enqueue_time = std::chrono::steady_clock::now();

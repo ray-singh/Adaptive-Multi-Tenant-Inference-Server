@@ -45,6 +45,7 @@ add_library(inference_core
   src/scheduler.cpp
   src/worker_pool.cpp
   src/metrics.cpp
+  src/rate_limiter.cpp
   src/llm_inference.cpp
 )
 target_include_directories(inference_core PUBLIC include)

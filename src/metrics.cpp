@@ -8,6 +8,12 @@ Metrics::Metrics(std::shared_ptr<prometheus::Registry> registry)
               .Help("Total inference requests received")
               .Register(*registry)
               .Add({})),
+      requests_rate_limited(
+          prometheus::BuildCounter()
+              .Name("inference_requests_rate_limited_total")
+              .Help("Requests rejected due to per-tenant rate limiting")
+              .Register(*registry)
+              .Add({})),
       queue_depth(
           prometheus::BuildGauge()
               .Name("inference_queue_depth")

@@ -9,6 +9,7 @@ struct Metrics {
     explicit Metrics(std::shared_ptr<prometheus::Registry> registry);
 
     prometheus::Counter&   requests_total;
+    prometheus::Counter&   requests_rate_limited;
     prometheus::Gauge&     queue_depth;
     prometheus::Histogram& latency_seconds;   // end-to-end per request
     prometheus::Histogram& queue_wait_seconds;
