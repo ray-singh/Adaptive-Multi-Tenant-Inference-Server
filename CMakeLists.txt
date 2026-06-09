@@ -70,6 +70,9 @@ add_executable(tests
   tests/test_request_queue.cpp
   tests/test_scheduler.cpp
   tests/test_worker_pool.cpp
+  tests/test_rate_limiter.cpp
+  tests/test_server.cpp
+  src/server.cpp          # server.cpp is not in inference_core; include directly
 )
 target_link_libraries(tests
   PRIVATE

@@ -2,6 +2,7 @@
 #include "request_queue.h"
 #include "metrics.h"
 #include "rate_limiter.h"
+#include "scheduler.h"
 #include "httplib.h"
 #include <memory>
 #include <string>
@@ -16,7 +17,7 @@ struct ServerConfig {
 
 class Server {
 public:
-    Server(ServerConfig config, RequestQueue& queue, Metrics& metrics);
+    Server(ServerConfig config, RequestQueue& queue, Metrics& metrics, Scheduler& scheduler);
     void run();   // blocks
     void stop();
 
@@ -26,6 +27,7 @@ private:
     ServerConfig  config_;
     RequestQueue& queue_;
     Metrics&      metrics_;
+    Scheduler&    scheduler_;
     RateLimiter   rate_limiter_;
     httplib::Server http_;
 };

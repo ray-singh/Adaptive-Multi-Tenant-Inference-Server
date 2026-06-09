@@ -8,8 +8,15 @@ using json = nlohmann::json;
 
 static std::atomic<uint64_t> request_id_counter{0};
 
-Server::Server(ServerConfig config, RequestQueue& queue, Metrics& metrics)
-    : config_(config), queue_(queue), metrics_(metrics),
+static const std::unordered_map<std::string, SchedulerPolicy> kPolicyNames = {
+    {"fifo",           SchedulerPolicy::FIFO},
+    {"fixed_batch",    SchedulerPolicy::FixedBatch},
+    {"adaptive_batch", SchedulerPolicy::AdaptiveBatch},
+    {"priority_batch", SchedulerPolicy::PriorityBatch},
+};
+
+Server::Server(ServerConfig config, RequestQueue& queue, Metrics& metrics, Scheduler& scheduler)
+    : config_(config), queue_(queue), metrics_(metrics), scheduler_(scheduler),
       rate_limiter_(config.rate_limit_rps, config.rate_limit_burst) {
     register_routes();
 }
@@ -39,8 +46,8 @@ void Server::register_routes() {
 
         auto prio_str = body.value("priority", "normal");
         Priority prio = Priority::Normal;
-        if (prio_str == "high")      prio = Priority::High;
-        else if (prio_str == "low")  prio = Priority::Low;
+        if (prio_str == "high")     prio = Priority::High;
+        else if (prio_str == "low") prio = Priority::Low;
 
         Request r;
         r.id           = ++request_id_counter;
@@ -61,6 +68,31 @@ void Server::register_routes() {
         metrics_.queue_depth.Decrement();
 
         res.set_content(json{{"result", result}}.dump(), "application/json");
+    });
+
+    // POST /admin/policy — change scheduler policy at runtime
+    http_.Post("/admin/policy", [this](const httplib::Request& req, httplib::Response& res) {
+        json body;
+        try {
+            body = json::parse(req.body);
+        } catch (...) {
+            res.status = 400;
+            res.set_content(R"({"error":"invalid JSON"})", "application/json");
+            return;
+        }
+
+        auto policy_str = body.value("policy", "");
+        auto it = kPolicyNames.find(policy_str);
+        if (it == kPolicyNames.end()) {
+            res.status = 400;
+            res.set_content(R"({"error":"unknown policy, valid: fifo, fixed_batch, adaptive_batch, priority_batch"})",
+                            "application/json");
+            return;
+        }
+
+        scheduler_.set_policy(it->second);
+        spdlog::info("Scheduler policy changed to {}", policy_str);
+        res.set_content(json{{"policy", policy_str}}.dump(), "application/json");
     });
 
     // GET /health

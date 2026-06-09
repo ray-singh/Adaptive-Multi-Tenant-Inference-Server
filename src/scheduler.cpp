@@ -3,15 +3,15 @@
 #include <thread>
 
 Scheduler::Scheduler(RequestQueue& queue, SchedulerConfig config)
-    : queue_(queue), config_(config) {}
+    : queue_(queue), config_(config), policy_(config.policy) {}
 
 void Scheduler::set_policy(SchedulerPolicy policy) {
-    config_.policy = policy;
+    policy_.store(policy, std::memory_order_relaxed);
 }
 
 std::vector<Request> Scheduler::next_batch() {
     if (!running_) return {};
-    switch (config_.policy) {
+    switch (policy_.load(std::memory_order_relaxed)) {
         case SchedulerPolicy::FIFO:          return form_fifo_batch();
         case SchedulerPolicy::FixedBatch:    return form_fixed_batch();
         case SchedulerPolicy::AdaptiveBatch: return form_adaptive_batch();
@@ -81,8 +81,6 @@ std::vector<Request> Scheduler::form_priority_batch() {
     if (batch.size() <= 1) return batch;
 
     // Sort by priority descending, then by soonest absolute deadline ascending.
-    // ensures high-priority requests are processed first, and among equal
-    // priority the most time-constrained request goes first.
     std::sort(batch.begin(), batch.end(), [](const Request& a, const Request& b) {
         if (a.priority != b.priority)
             return static_cast<int>(a.priority) > static_cast<int>(b.priority);

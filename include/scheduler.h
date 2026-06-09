@@ -10,10 +10,9 @@ struct SchedulerConfig {
     SchedulerPolicy policy    = SchedulerPolicy::AdaptiveBatch;
     std::size_t max_batch     = 32;
     std::size_t min_batch     = 1;
-    std::chrono::milliseconds max_wait{20}; // flush batch after this even if not full
+    std::chrono::milliseconds max_wait{20};
 };
 
-// Pulls requests from the queue and forms batches for dispatch.
 class Scheduler {
 public:
     explicit Scheduler(RequestQueue& queue, SchedulerConfig config = {});
@@ -22,7 +21,7 @@ public:
     // Returns empty immediately if stop() has been called.
     std::vector<Request> next_batch();
 
-    void set_policy(SchedulerPolicy policy);
+    void set_policy(SchedulerPolicy policy);  // thread-safe
     void stop();
     bool is_running() const;
 
@@ -34,5 +33,6 @@ private:
 
     RequestQueue& queue_;
     SchedulerConfig config_;
+    std::atomic<SchedulerPolicy> policy_;
     std::atomic<bool> running_{true};
 };
