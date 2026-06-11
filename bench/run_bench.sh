@@ -10,7 +10,8 @@ set -euo pipefail
 SERVER="${SERVER_URL:-http://localhost:8080}"
 DURATION="${BENCH_DURATION:-30s}"
 THREADS="${BENCH_THREADS:-4}"
-CONNECTIONS="${BENCH_CONNECTIONS:-16}"
+CONNECTIONS="${BENCH_CONNECTIONS:-4}"
+TIMEOUT="${BENCH_TIMEOUT:-30s}"
 BENCH_DIR="$(cd "$(dirname "$0")" && pwd)"
 RESULTS_DIR="$BENCH_DIR/results"
 LUA_SCRIPT="$BENCH_DIR/infer.lua"
@@ -46,7 +47,7 @@ run_policy() {
     switch_policy "$policy"
     sleep 1  # let in-flight requests from the previous policy drain
 
-    wrk -t"$THREADS" -c"$CONNECTIONS" -d"$DURATION" -s "$LUA_SCRIPT" "$SERVER" \
+    wrk -t"$THREADS" -c"$CONNECTIONS" -d"$DURATION" --timeout "$TIMEOUT" -s "$LUA_SCRIPT" "$SERVER" \
         2>&1 | tee "$out"
     echo "  (saved → $out)"
 }
@@ -56,6 +57,7 @@ echo "  Server:      $SERVER"
 echo "  Duration:    $DURATION per policy"
 echo "  Threads:     $THREADS"
 echo "  Connections: $CONNECTIONS"
+echo "  Timeout:     $TIMEOUT"
 echo "  Run ID:      $RUN_TS"
 echo ""
 

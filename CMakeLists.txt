@@ -47,6 +47,8 @@ add_library(inference_core
   src/metrics.cpp
   src/rate_limiter.cpp
   src/llm_inference.cpp
+  src/kv_slot_manager.cpp
+  src/continuous_batch_engine.cpp
 )
 target_include_directories(inference_core PUBLIC include)
 target_link_libraries(inference_core
@@ -72,6 +74,7 @@ add_executable(tests
   tests/test_worker_pool.cpp
   tests/test_rate_limiter.cpp
   tests/test_server.cpp
+  tests/test_kv_slot_manager.cpp
   src/server.cpp          # server.cpp is not in inference_core; include directly
 )
 target_link_libraries(tests

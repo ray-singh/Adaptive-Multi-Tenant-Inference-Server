@@ -10,8 +10,11 @@ struct Metrics {
 
     prometheus::Counter&   requests_total;
     prometheus::Counter&   requests_rate_limited;
+    prometheus::Counter&   requests_deadline_exceeded;
     prometheus::Gauge&     queue_depth;
-    prometheus::Histogram& latency_seconds;   // end-to-end per request
+    prometheus::Gauge&     requests_inflight;
+    prometheus::Gauge&     kv_slot_utilization;
+    prometheus::Histogram& latency_seconds;
     prometheus::Histogram& queue_wait_seconds;
     prometheus::Histogram& batch_size;
 };

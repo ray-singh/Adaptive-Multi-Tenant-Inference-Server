@@ -1,0 +1,421 @@
+{
+  "title": "Inference Server",
+  "uid": "inference-server-v1",
+  "description": "Throughput, latency, batching, and error metrics for the adaptive multi-tenant inference server.",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "5s",
+  "time": { "from": "now-5m", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "tags": ["inference", "llm", "scheduling"],
+  "annotations": { "list": [] },
+  "templating": { "list": [] },
+  "links": [],
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Requests / sec",
+      "id": 1,
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus-inference" },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "rate(inference_requests_total[1m])",
+          "legendFormat": "",
+          "refId": "A",
+          "instant": true,
+          "datasource": { "type": "prometheus", "uid": "prometheus-inference" }
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "In-flight Requests",
+      "id": 2,
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus-inference" },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "blue", "value": null }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "inference_requests_inflight",
+          "legendFormat": "",
+          "refId": "A",
+          "instant": true,
+          "datasource": { "type": "prometheus", "uid": "prometheus-inference" }
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "p99 Latency",
+      "id": 3,
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus-inference" },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1 },
+              { "color": "red", "value": 3 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, rate(inference_latency_seconds_bucket[1m]))",
+          "legendFormat": "",
+          "refId": "A",
+          "instant": true,
+          "datasource": { "type": "prometheus", "uid": "prometheus-inference" }
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Rate Limited / sec",
+      "id": 4,
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus-inference" },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 0.1 },
+              { "color": "red", "value": 1 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "rate(inference_requests_rate_limited_total[1m])",
+          "legendFormat": "",
+          "refId": "A",
+          "instant": true,
+          "datasource": { "type": "prometheus", "uid": "prometheus-inference" }
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Throughput",
+      "id": 5,
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus-inference" },
+      "options": {
+        "tooltip": { "mode": "multi", "sort": "none" },
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "rate(inference_requests_total[1m])",
+          "legendFormat": "completed req/s",
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "prometheus-inference" }
+        },
+        {
+          "expr": "rate(inference_requests_rate_limited_total[1m])",
+          "legendFormat": "rate limited req/s",
+          "refId": "B",
+          "datasource": { "type": "prometheus", "uid": "prometheus-inference" }
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Queue Depth",
+      "id": 6,
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus-inference" },
+      "options": {
+        "tooltip": { "mode": "multi", "sort": "none" },
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "fillOpacity": 20,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "inference_queue_depth",
+          "legendFormat": "queued",
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "prometheus-inference" }
+        },
+        {
+          "expr": "inference_requests_inflight",
+          "legendFormat": "in-flight",
+          "refId": "B",
+          "datasource": { "type": "prometheus", "uid": "prometheus-inference" }
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "End-to-End Latency",
+      "id": 7,
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "datasource": { "type": "prometheus", "uid": "prometheus-inference" },
+      "options": {
+        "tooltip": { "mode": "multi", "sort": "none" },
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "fillOpacity": 0,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, rate(inference_latency_seconds_bucket[1m]))",
+          "legendFormat": "p50",
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "prometheus-inference" }
+        },
+        {
+          "expr": "histogram_quantile(0.95, rate(inference_latency_seconds_bucket[1m]))",
+          "legendFormat": "p95",
+          "refId": "B",
+          "datasource": { "type": "prometheus", "uid": "prometheus-inference" }
+        },
+        {
+          "expr": "histogram_quantile(0.99, rate(inference_latency_seconds_bucket[1m]))",
+          "legendFormat": "p99",
+          "refId": "C",
+          "datasource": { "type": "prometheus", "uid": "prometheus-inference" }
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Queue Wait Time",
+      "id": 8,
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "datasource": { "type": "prometheus", "uid": "prometheus-inference" },
+      "options": {
+        "tooltip": { "mode": "multi", "sort": "none" },
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "fillOpacity": 0,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, rate(inference_queue_wait_seconds_bucket[1m]))",
+          "legendFormat": "p50",
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "prometheus-inference" }
+        },
+        {
+          "expr": "histogram_quantile(0.95, rate(inference_queue_wait_seconds_bucket[1m]))",
+          "legendFormat": "p95",
+          "refId": "B",
+          "datasource": { "type": "prometheus", "uid": "prometheus-inference" }
+        },
+        {
+          "expr": "histogram_quantile(0.99, rate(inference_queue_wait_seconds_bucket[1m]))",
+          "legendFormat": "p99",
+          "refId": "C",
+          "datasource": { "type": "prometheus", "uid": "prometheus-inference" }
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Batch Size",
+      "id": 9,
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 20 },
+      "datasource": { "type": "prometheus", "uid": "prometheus-inference" },
+      "options": {
+        "tooltip": { "mode": "multi", "sort": "none" },
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "rate(inference_batch_size_sum[1m]) / rate(inference_batch_size_count[1m])",
+          "legendFormat": "avg batch size",
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "prometheus-inference" }
+        },
+        {
+          "expr": "histogram_quantile(0.99, rate(inference_batch_size_bucket[1m]))",
+          "legendFormat": "p99 batch size",
+          "refId": "B",
+          "datasource": { "type": "prometheus", "uid": "prometheus-inference" }
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Errors",
+      "id": 10,
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 20 },
+      "datasource": { "type": "prometheus", "uid": "prometheus-inference" },
+      "options": {
+        "tooltip": { "mode": "multi", "sort": "none" },
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "rate(inference_requests_deadline_exceeded_total[1m])",
+          "legendFormat": "deadline exceeded/s",
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "prometheus-inference" }
+        },
+        {
+          "expr": "rate(inference_requests_rate_limited_total[1m])",
+          "legendFormat": "rate limited/s",
+          "refId": "B",
+          "datasource": { "type": "prometheus", "uid": "prometheus-inference" }
+        }
+      ]
+    }
+  ]
+}

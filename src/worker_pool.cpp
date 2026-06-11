@@ -57,15 +57,18 @@ void WorkerPool::worker_loop() {
         if (now > req.enqueue_time + req.deadline) {
             if (req.on_complete) req.on_complete(R"({"error":"deadline_exceeded"})");
             metrics_.requests_total.Increment();
+            metrics_.requests_deadline_exceeded.Increment();
             continue;
         }
 
+        metrics_.requests_inflight.Increment();
         std::string result = single_fn_(req.payload);
 
         auto latency = std::chrono::steady_clock::now() - req.enqueue_time;
         metrics_.latency_seconds.Observe(std::chrono::duration<double>(latency).count());
         metrics_.requests_total.Increment();
 
+        metrics_.requests_inflight.Decrement();
         if (req.on_complete) req.on_complete(std::move(result));
     }
 }
@@ -97,6 +100,7 @@ void WorkerPool::batch_worker_loop() {
             if (now > batch[i].enqueue_time + batch[i].deadline) {
                 if (batch[i].on_complete) batch[i].on_complete(R"({"error":"deadline_exceeded"})");
                 metrics_.requests_total.Increment();
+                metrics_.requests_deadline_exceeded.Increment();
             } else {
                 payloads.push_back(batch[i].payload);
                 active_indices.push_back(i);
@@ -105,7 +109,9 @@ void WorkerPool::batch_worker_loop() {
 
         if (payloads.empty()) continue;
 
+        metrics_.requests_inflight.Increment(static_cast<double>(payloads.size()));
         auto results = batch_fn_(payloads);
+        metrics_.requests_inflight.Decrement(static_cast<double>(payloads.size()));
         auto end     = std::chrono::steady_clock::now();
 
         for (std::size_t j = 0; j < active_indices.size(); ++j) {

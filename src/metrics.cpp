@@ -14,10 +14,28 @@ Metrics::Metrics(std::shared_ptr<prometheus::Registry> registry)
               .Help("Requests rejected due to per-tenant rate limiting")
               .Register(*registry)
               .Add({})),
+      requests_deadline_exceeded(
+          prometheus::BuildCounter()
+              .Name("inference_requests_deadline_exceeded_total")
+              .Help("Requests that expired in queue before being processed")
+              .Register(*registry)
+              .Add({})),
       queue_depth(
           prometheus::BuildGauge()
               .Name("inference_queue_depth")
               .Help("Current number of requests waiting in queue")
+              .Register(*registry)
+              .Add({})),
+      requests_inflight(
+          prometheus::BuildGauge()
+              .Name("inference_requests_inflight")
+              .Help("Number of requests currently being processed by workers")
+              .Register(*registry)
+              .Add({})),
+      kv_slot_utilization(
+          prometheus::BuildGauge()
+              .Name("inference_kv_slot_utilization")
+              .Help("Fraction of KV cache slots currently occupied (0.0–1.0)")
               .Register(*registry)
               .Add({})),
       latency_seconds(

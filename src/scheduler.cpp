@@ -56,20 +56,28 @@ std::vector<Request> Scheduler::form_adaptive_batch() {
     std::vector<Request> batch;
     auto deadline = std::chrono::steady_clock::now() + config_.max_wait;
 
-    // Always wait for at least one request.
+    // Wait for at least one request.
     {
-        Request r;
         auto remaining = std::chrono::duration_cast<std::chrono::milliseconds>(
             deadline - std::chrono::steady_clock::now());
+        Request r;
         if (!queue_.pop(r, remaining)) return batch;
         batch.push_back(std::move(r));
     }
 
-    // Drain additional requests that are already queued, up to max_batch.
-    std::size_t target = std::min(config_.max_batch, std::max(config_.min_batch, queue_.size() + 1));
-    while (batch.size() < target) {
+    // Keep collecting until max_batch or the time window exhausts.
+    // If the queue already has items, drain them without blocking (high-load path).
+    // If the queue is empty, wait up to the remaining window for new arrivals (low-load path).
+    // This naturally adapts: under load the backlog is drained instantly; at low concurrency
+    // we pause briefly to catch straggler or co-arriving requests before dispatching.
+    while (batch.size() < config_.max_batch) {
+        auto remaining = std::chrono::duration_cast<std::chrono::milliseconds>(
+            deadline - std::chrono::steady_clock::now());
+        if (remaining <= std::chrono::milliseconds::zero()) break;
+
+        auto wait = queue_.size() > 0 ? std::chrono::milliseconds{0} : remaining;
         Request r;
-        if (!queue_.pop(r, std::chrono::milliseconds{0})) break;
+        if (!queue_.pop(r, wait)) break;
         batch.push_back(std::move(r));
     }
 
