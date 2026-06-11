@@ -1,10 +1,9 @@
 #pragma once
-#include "request_queue.h"
+#include "request.h"
 #include "metrics.h"
 #include "rate_limiter.h"
-#include "scheduler.h"
 #include "httplib.h"
-#include <memory>
+#include <functional>
 #include <string>
 
 struct ServerConfig {
@@ -17,7 +16,7 @@ struct ServerConfig {
 
 class Server {
 public:
-    Server(ServerConfig config, RequestQueue& queue, Metrics& metrics, Scheduler& scheduler);
+    Server(ServerConfig config, std::function<void(Request)> enqueue_fn, Metrics& metrics);
     void run();   // blocks
     void stop();
 
@@ -25,9 +24,8 @@ private:
     void register_routes();
 
     ServerConfig  config_;
-    RequestQueue& queue_;
+    std::function<void(Request)> enqueue_fn_;
     Metrics&      metrics_;
-    Scheduler&    scheduler_;
     RateLimiter   rate_limiter_;
     httplib::Server http_;
 };

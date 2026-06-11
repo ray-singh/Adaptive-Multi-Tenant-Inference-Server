@@ -8,21 +8,13 @@ using json = nlohmann::json;
 
 static std::atomic<uint64_t> request_id_counter{0};
 
-static const std::unordered_map<std::string, SchedulerPolicy> kPolicyNames = {
-    {"fifo",           SchedulerPolicy::FIFO},
-    {"fixed_batch",    SchedulerPolicy::FixedBatch},
-    {"adaptive_batch", SchedulerPolicy::AdaptiveBatch},
-    {"priority_batch", SchedulerPolicy::PriorityBatch},
-};
-
-Server::Server(ServerConfig config, RequestQueue& queue, Metrics& metrics, Scheduler& scheduler)
-    : config_(config), queue_(queue), metrics_(metrics), scheduler_(scheduler),
+Server::Server(ServerConfig config, std::function<void(Request)> enqueue_fn, Metrics& metrics)
+    : config_(config), enqueue_fn_(std::move(enqueue_fn)), metrics_(metrics),
       rate_limiter_(config.rate_limit_rps, config.rate_limit_burst) {
     register_routes();
 }
 
 void Server::register_routes() {
-    // POST /infer — enqueue a request, block until result
     http_.Post("/infer", [this](const httplib::Request& req, httplib::Response& res) {
         json body;
         try {
@@ -62,7 +54,7 @@ void Server::register_routes() {
         };
 
         metrics_.queue_depth.Increment();
-        queue_.push(std::move(r));
+        enqueue_fn_(std::move(r));
 
         std::string result = future.get();
         metrics_.queue_depth.Decrement();
@@ -70,32 +62,6 @@ void Server::register_routes() {
         res.set_content(json{{"result", result}}.dump(), "application/json");
     });
 
-    // POST /admin/policy — change scheduler policy at runtime
-    http_.Post("/admin/policy", [this](const httplib::Request& req, httplib::Response& res) {
-        json body;
-        try {
-            body = json::parse(req.body);
-        } catch (...) {
-            res.status = 400;
-            res.set_content(R"({"error":"invalid JSON"})", "application/json");
-            return;
-        }
-
-        auto policy_str = body.value("policy", "");
-        auto it = kPolicyNames.find(policy_str);
-        if (it == kPolicyNames.end()) {
-            res.status = 400;
-            res.set_content(R"({"error":"unknown policy, valid: fifo, fixed_batch, adaptive_batch, priority_batch"})",
-                            "application/json");
-            return;
-        }
-
-        scheduler_.set_policy(it->second);
-        spdlog::info("Scheduler policy changed to {}", policy_str);
-        res.set_content(json{{"policy", policy_str}}.dump(), "application/json");
-    });
-
-    // GET /health
     http_.Get("/health", [](const httplib::Request&, httplib::Response& res) {
         res.set_content(R"({"status":"ok"})", "application/json");
     });

@@ -38,15 +38,11 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(llama_cpp)
 
-# Core library (scheduler, workers, queue, LLM wrapper — shared by server and tests)
+# Core library
 add_library(inference_core
   src/request.cpp
-  src/request_queue.cpp
-  src/scheduler.cpp
-  src/worker_pool.cpp
   src/metrics.cpp
   src/rate_limiter.cpp
-  src/llm_inference.cpp
   src/kv_slot_manager.cpp
   src/continuous_batch_engine.cpp
 )
@@ -66,16 +62,12 @@ target_link_libraries(inference_server
     inference_core
 )
 
-# Tests (do not link llm_inference — tests use the stub, not a real model)
 enable_testing()
 add_executable(tests
-  tests/test_request_queue.cpp
-  tests/test_scheduler.cpp
-  tests/test_worker_pool.cpp
   tests/test_rate_limiter.cpp
   tests/test_server.cpp
   tests/test_kv_slot_manager.cpp
-  src/server.cpp          # server.cpp is not in inference_core; include directly
+  src/server.cpp
 )
 target_link_libraries(tests
   PRIVATE
