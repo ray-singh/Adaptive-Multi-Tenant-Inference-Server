@@ -1,6 +1,28 @@
 version: "3.9"
 
 services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+
+  inference-server:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"    # HTTP (OpenAI-compatible + /infer)
+      - "50051:50051"  # gRPC
+    environment:
+      - MODEL_PATH=/models/model.gguf
+      - REDIS_URL=redis://redis:6379
+    volumes:
+      - ${MODEL_DIR:-../models}:/models:ro
+    depends_on:
+      - redis
+    restart: unless-stopped
+
   prometheus:
     image: prom/prometheus:v2.51.0
     volumes:
@@ -10,6 +32,8 @@ services:
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
       - "--storage.tsdb.retention.time=7d"
+    depends_on:
+      - inference-server
 
   grafana:
     image: grafana/grafana:10.4.0

@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: model-pvc
+  namespace: default
+spec:
+  accessModes:
+  - ReadOnlyMany       # multiple pods can mount the same model volume simultaneously
+  resources:
+    requests:
+      storage: 10Gi    # adjust to your model size (e.g. 5Gi for Q4 7B, 40Gi for 70B)
+  storageClassName: standard

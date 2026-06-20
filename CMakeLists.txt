@@ -32,7 +32,7 @@ find_path(HIREDIS_INCLUDE hiredis/hiredis.h HINTS "${HOMEBREW_PREFIX}/opt/hiredi
 add_library(hiredis::hiredis UNKNOWN IMPORTED)
 set_target_properties(hiredis::hiredis PROPERTIES
     IMPORTED_LOCATION             "${HIREDIS_LIB}"
-    INTERFACE_INCLUDE_DIRECTORIES "${HOMEBREW_PREFIX}/opt/hiredis/include"
+    INTERFACE_INCLUDE_DIRECTORIES "${HIREDIS_INCLUDE}"
 )
 
 # ── llama.cpp ─────────────────────────────────────────────────────────────────
