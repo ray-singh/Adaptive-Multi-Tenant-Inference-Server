@@ -1,5 +1,6 @@
 #include "server.h"
 #include "metrics.h"
+#include "rate_limiter.h"
 #include "httplib.h"
 #include <gtest/gtest.h>
 #include <nlohmann/json.hpp>
@@ -27,7 +28,9 @@ protected:
         srv.port             = kPort;
         srv.rate_limit_rps   = 10000.0;
         srv.rate_limit_burst = 10000;
-        server_ = std::make_unique<Server>(srv, stub_enqueue, *metrics_);
+
+        rate_limiter_ = std::make_unique<RateLimiter>(srv.rate_limit_rps, srv.rate_limit_burst);
+        server_ = std::make_unique<Server>(srv, stub_enqueue, *metrics_, *rate_limiter_);
 
         srv_thread_ = std::thread([this] { server_->run(); });
         std::this_thread::sleep_for(std::chrono::milliseconds{150});
@@ -40,8 +43,9 @@ protected:
 
     httplib::Client client_{"127.0.0.1", kPort};
     std::shared_ptr<prometheus::Registry> registry_;
-    std::unique_ptr<Metrics> metrics_;
-    std::unique_ptr<Server>  server_;
+    std::unique_ptr<Metrics>      metrics_;
+    std::unique_ptr<RateLimiter>  rate_limiter_;
+    std::unique_ptr<Server>       server_;
     std::thread srv_thread_;
 };
 
@@ -85,7 +89,40 @@ TEST_F(ServerFixture, DefaultsApplyWhenFieldsOmitted) {
     EXPECT_EQ(res->status, 200);
 }
 
-// Separate fixture with a tight rate limit to test 429 handling.
+TEST_F(ServerFixture, ChatCompletionsReturnsOpenAIShape) {
+    json body = {
+        {"model", "local-model"},
+        {"messages", json::array({
+            {{"role", "user"}, {"content", "hello"}}
+        })}
+    };
+    auto res = client_.Post("/v1/chat/completions", body.dump(), "application/json");
+    ASSERT_TRUE(res);
+    EXPECT_EQ(res->status, 200);
+    auto resp = json::parse(res->body);
+    EXPECT_EQ(resp["object"], "chat.completion");
+    EXPECT_TRUE(resp.contains("choices"));
+    EXPECT_EQ(resp["choices"][0]["message"]["role"], "assistant");
+}
+
+TEST_F(ServerFixture, ChatCompletionsMissingMessagesReturns400) {
+    json body = {{"model", "local-model"}};
+    auto res = client_.Post("/v1/chat/completions", body.dump(), "application/json");
+    ASSERT_TRUE(res);
+    EXPECT_EQ(res->status, 400);
+}
+
+TEST_F(ServerFixture, ModelsEndpointReturnsList) {
+    auto res = client_.Get("/v1/models");
+    ASSERT_TRUE(res);
+    EXPECT_EQ(res->status, 200);
+    auto resp = json::parse(res->body);
+    EXPECT_EQ(resp["object"], "list");
+    EXPECT_FALSE(resp["data"].empty());
+}
+
+// ── Rate-limited fixture ──────────────────────────────────────────────────────
+
 class RateLimitedFixture : public ::testing::Test {
 protected:
     static constexpr int kPort = 18081;
@@ -99,7 +136,9 @@ protected:
         srv.port             = kPort;
         srv.rate_limit_rps   = 1.0;
         srv.rate_limit_burst = 1;
-        server_ = std::make_unique<Server>(srv, stub_enqueue, *metrics_);
+
+        rate_limiter_ = std::make_unique<RateLimiter>(srv.rate_limit_rps, srv.rate_limit_burst);
+        server_ = std::make_unique<Server>(srv, stub_enqueue, *metrics_, *rate_limiter_);
 
         srv_thread_ = std::thread([this] { server_->run(); });
         std::this_thread::sleep_for(std::chrono::milliseconds{150});
@@ -112,8 +151,9 @@ protected:
 
     httplib::Client client_{"127.0.0.1", kPort};
     std::shared_ptr<prometheus::Registry> registry_;
-    std::unique_ptr<Metrics> metrics_;
-    std::unique_ptr<Server>  server_;
+    std::unique_ptr<Metrics>      metrics_;
+    std::unique_ptr<RateLimiter>  rate_limiter_;
+    std::unique_ptr<Server>       server_;
     std::thread srv_thread_;
 };
 

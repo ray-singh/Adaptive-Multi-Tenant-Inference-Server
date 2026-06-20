@@ -260,7 +260,8 @@ void ContinuousBatchEngine::engine_loop() {
                 ++tokens_generated_[sid];
             }
 
-            bool max_hit = (tokens_generated_[sid] >= config_.max_tokens);
+            int  limit   = s.request.max_new_tokens > 0 ? s.request.max_new_tokens : config_.max_tokens;
+            bool max_hit = (tokens_generated_[sid] >= limit);
 
             if (eos || max_hit) {
                 metrics_.latency_seconds.Observe(

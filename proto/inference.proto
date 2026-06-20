@@ -1,0 +1,55 @@
+syntax = "proto3";
+
+package inference;
+
+service InferenceService {
+  // Raw inference: pass a prompt string, get a completion string back.
+  rpc Infer(InferRequest) returns (InferResponse);
+
+  // OpenAI-style chat completion over gRPC.
+  rpc ChatComplete(ChatRequest) returns (ChatResponse);
+}
+
+// ── Infer ─────────────────────────────────────────────────────────────────────
+
+message InferRequest {
+  string tenant_id      = 1;
+  string payload        = 2;
+  string priority       = 3;  // "high" | "normal" | "low"
+  int32  deadline_ms    = 4;  // 0 = server default (5000 ms)
+  int32  max_new_tokens = 5;  // 0 = engine global limit
+}
+
+message InferResponse {
+  string result     = 1;
+  uint64 request_id = 2;
+  string error      = 3;  // non-empty on failure
+}
+
+// ── ChatComplete ──────────────────────────────────────────────────────────────
+
+message ChatMessage {
+  string role    = 1;  // "system" | "user" | "assistant"
+  string content = 2;
+}
+
+message ChatRequest {
+  string             model       = 1;
+  repeated ChatMessage messages  = 2;
+  int32  max_tokens              = 3;  // 0 = engine global limit
+  string tenant_id               = 4;
+  int32  deadline_ms             = 5;  // 0 = server default (30000 ms)
+}
+
+message ChatChoice {
+  int32       index         = 1;
+  ChatMessage message       = 2;
+  string      finish_reason = 3;
+}
+
+message ChatResponse {
+  string             id      = 1;
+  string             model   = 2;
+  repeated ChatChoice choices = 3;
+  string             error   = 4;
+}

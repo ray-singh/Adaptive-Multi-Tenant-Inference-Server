@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: inference-server-config
+  namespace: default
+data:
+  MODEL_PATH:  "/models/model.gguf"
+  REDIS_URL:   "redis://redis-service:6379"
+  MODEL_NAME:  "local-model"

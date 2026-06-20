@@ -12,6 +12,7 @@ struct Request {
     Priority priority;
     std::chrono::steady_clock::time_point enqueue_time;
     std::chrono::milliseconds deadline; // max allowed wait from enqueue_time
+    int max_new_tokens = 0;             // 0 = use engine global config_.max_tokens
 
     using Callback = std::function<void(std::string result)>;
     Callback on_complete;
