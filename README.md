@@ -10,27 +10,7 @@ This project implements continuous batching from scratch in C++ against llama.cp
 
 ## Architecture
 
-```text
-Clients
-   │
-   ▼
-HTTP Server (cpp-httplib, port 8080)
-   │  POST /infer  GET /health
-   ▼
-RateLimiter (token bucket, per tenant)
-   │
-   ▼
-ContinuousBatchEngine
-   │  ┌─────────────────────────────────────────────┐
-   │  │  Admission loop (priority + deadline order) │
-   │  │  KVSlotManager (seq_id ↔ KV cell tracking)  │
-   │  │  Decode loop (llama_decode per step)        │
-   │  │  Per-sequence sampling + EOS detection      │
-   │  └─────────────────────────────────────────────┘
-   │
-   ├── Metrics (prometheus-cpp, port 9090)
-   └── on_complete callback → HTTP response
-```
+![Architecture](./architecture.svg)
 
 ## How it works
 
@@ -136,13 +116,26 @@ MODEL_PATH=/path/to/model.gguf ./build/inference_server &
 
 The bench script (`bench/infer.lua`) mixes short prompts (a few tokens) and long prompts (paragraph responses) to produce variable response lengths — the workload where continuous batching's advantage over static batching is most pronounced.
 
-### Static batching baseline
+### Scheduling policy comparison (prior architecture)
 
-Measured on `SmolLM2-135M-Instruct-Q4_K_M.gguf`, Apple Silicon (Metal/MPS), before the continuous batching rewrite. Included as a reference point.
+The results in `bench/results/` were captured against the old scheduler, which exposed four configurable policies: `fifo`, `fixed_batch`, `priority_batch`, and `adaptive_batch`. These runs used `SmolLM2-135M-Instruct-Q4_K_M.gguf` on Apple Silicon (Metal/MPS). The continuous batching rewrite replaced all four policies with a single engine; no pre/post comparison has been run yet.
 
-| Concurrency | Policy | Req/s | p50 | p99 |
-|-------------|--------|-------|-----|-----|
-| 4 conns | Fixed Batch | 2.63 | 1515 ms | 2748 ms |
-| 16 conns | Fixed Batch | **3.22** | 4390 ms | 5386 ms |
+**4 connections**
 
-Under static batching, throughput plateaus at 16 connections because short responses waste their slot waiting for the slowest sequence in the batch to finish. The continuous batching engine eliminates that dead time.
+| Policy | Req/s | p50 | p99 |
+|--------|-------|-----|-----|
+| Fixed Batch | **2.63** | 1515 ms | 2748 ms |
+| FIFO | 2.53 | 1588 ms | 1879 ms |
+| Adaptive Batch | 2.43 | 1627 ms | 2065 ms |
+| Priority Batch | 2.43 | 1664 ms | 2015 ms |
+
+**16 connections**
+
+| Policy | Req/s | p50 | p99 |
+|--------|-------|-----|-----|
+| Fixed Batch | **3.22** | 4390 ms | 5386 ms |
+| Priority Batch | **3.22** | 4493 ms | 5366 ms |
+| Adaptive Batch | **3.22** | 4826 ms | 5403 ms |
+| FIFO | 2.53 | 5151 ms | 5485 ms |
+
+At 16 connections the fixed-batch and priority policies tie on throughput; FIFO falls behind because it can't prioritize shorter work. The continuous batching engine eliminates the structural cause of the throughput plateau — short responses no longer hold their KV slot waiting for the slowest sequence — but a direct before/after measurement on the current codebase has not yet been captured.
